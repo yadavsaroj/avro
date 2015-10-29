@@ -5,9 +5,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 # http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -31,6 +31,49 @@ module Avro
       end
     end
 
+    def self.match_schemas(writers_schema, readers_schema)
+      w_type = writers_schema.type_sym
+      r_type = readers_schema.type_sym
+
+      # This conditional is begging for some OO love.
+      if w_type == :union || r_type == :union
+        return true
+      end
+
+      if w_type == r_type
+        return true if Schema::PRIMITIVE_TYPES_SYM.include?(r_type)
+
+        case r_type
+        when :record
+          return writers_schema.fullname == readers_schema.fullname
+        when :error
+          return writers_schema.fullname == readers_schema.fullname
+        when :request
+          return true
+        when :fixed
+          return writers_schema.fullname == readers_schema.fullname &&
+                 writers_schema.size == readers_schema.size
+        when :enum
+          return writers_schema.fullname == readers_schema.fullname
+        when :map
+          return writers_schema.values.type == readers_schema.values.type
+        when :array
+          return writers_schema.items.type == readers_schema.items.type
+        end
+      end
+
+      # Handle schema promotion
+      if w_type == :int && [:long, :float, :double].include?(r_type)
+        return true
+      elsif w_type == :long && [:float, :double].include?(r_type)
+        return true
+      elsif w_type == :float && r_type == :double
+        return true
+      end
+
+      return false
+    end
+
     # FIXME(jmhodges) move validate to this module?
 
     class BinaryDecoder
@@ -45,7 +88,7 @@ module Avro
       def byte!
         @reader.read(1).unpack('C').first
       end
-      
+
       def read_null
         # null is written as zero byte's
         nil
@@ -159,7 +202,7 @@ module Avro
         nil
       end
 
-      # a boolean is written as a single byte 
+      # a boolean is written as a single byte
       # whose value is either 0 (false) or 1 (true).
       def write_boolean(datum)
         on_disk = datum ? 1.chr : 0.chr
@@ -220,49 +263,6 @@ module Avro
     end
 
     class DatumReader
-      def self.match_schemas(writers_schema, readers_schema)
-        w_type = writers_schema.type_sym
-        r_type = readers_schema.type_sym
-
-        # This conditional is begging for some OO love.
-        if w_type == :union || r_type == :union
-          return true
-        end
-
-        if w_type == r_type
-          return true if Schema::PRIMITIVE_TYPES_SYM.include?(r_type)
-
-          case r_type
-          when :record
-            return writers_schema.fullname == readers_schema.fullname
-          when :error
-            return writers_schema.fullname == readers_schema.fullname
-          when :request
-            return true
-          when :fixed
-            return writers_schema.fullname == readers_schema.fullname &&
-                   writers_schema.size == readers_schema.size
-          when :enum
-            return writers_schema.fullname == readers_schema.fullname
-          when :map
-            return writers_schema.values.type == readers_schema.values.type
-          when :array
-            return writers_schema.items.type == readers_schema.items.type
-          end
-        end
-
-        # Handle schema promotion
-        if w_type == :int && [:long, :float, :double].include?(r_type)
-          return true
-        elsif w_type == :long && [:float, :double].include?(r_type)
-          return true
-        elsif w_type == :float && r_type == :double
-          return true
-        end
-
-        return false
-      end
-
       attr_accessor :writers_schema, :readers_schema
 
       def initialize(writers_schema=nil, readers_schema=nil)
@@ -277,7 +277,7 @@ module Avro
 
       def read_data(writers_schema, readers_schema, decoder)
         # schema matching
-        unless self.class.match_schemas(writers_schema, readers_schema)
+        unless ::Avro::IO.match_schemas(writers_schema, readers_schema)
           raise SchemaMatchException.new(writers_schema, readers_schema)
         end
 
@@ -285,7 +285,7 @@ module Avro
         # schema is not
         if writers_schema.type_sym != :union && readers_schema.type_sym == :union
           rs = readers_schema.schemas.find{|s|
-            self.class.match_schemas(writers_schema, s)
+            ::Avro::IO.match_schemas(writers_schema, s)
           }
           return read_data(writers_schema, rs, decoder) if rs
           raise SchemaMatchException.new(writers_schema, readers_schema)
