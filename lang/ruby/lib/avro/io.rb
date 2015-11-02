@@ -262,34 +262,18 @@ module Avro
       end
     end
 
-    class DatumReader
-      attr_accessor :writers_schema, :readers_schema
-
-      def initialize(writers_schema=nil, readers_schema=nil)
-        @writers_schema = writers_schema
-        @readers_schema = readers_schema
-      end
-
+    require 'avro/io/datum_reader_base'
+    class DatumReader < DatumReaderBase
       def read(decoder)
-        self.readers_schema = writers_schema unless readers_schema
+        super
         read_data(writers_schema, readers_schema, decoder)
       end
 
       def read_data(writers_schema, readers_schema, decoder)
-        # schema matching
-        unless ::Avro::IO.match_schemas(writers_schema, readers_schema)
-          raise SchemaMatchException.new(writers_schema, readers_schema)
-        end
+        ensure_schema_match(writers_schema, readers_schema)
 
-        # schema resolution: reader's schema is a union, writer's
-        # schema is not
-        if writers_schema.type_sym != :union && readers_schema.type_sym == :union
-          rs = readers_schema.schemas.find{|s|
-            ::Avro::IO.match_schemas(writers_schema, s)
-          }
-          return read_data(writers_schema, rs, decoder) if rs
-          raise SchemaMatchException.new(writers_schema, readers_schema)
-        end
+        rs = union_schema_resolution(writers_schema, readers_schema)
+        return read_data(writers_schema, rs, decoder) if rs
 
         # function dispatch for reading data based on type of writer's
         # schema
@@ -404,50 +388,6 @@ module Avro
         end
 
         read_record
-      end
-
-      def read_default_value(field_schema, default_value)
-        # Basically a JSON Decoder?
-        case field_schema.type_sym
-        when :null
-          return nil
-        when :boolean
-          return default_value
-        when :int, :long
-          return Integer(default_value)
-        when :float, :double
-          return Float(default_value)
-        when :enum, :fixed, :string, :bytes
-          return default_value
-        when :array
-          read_array = []
-          default_value.each do |json_val|
-            item_val = read_default_value(field_schema.items, json_val)
-            read_array << item_val
-          end
-          return read_array
-        when :map
-          read_map = {}
-          default_value.each do |key, json_val|
-            map_val = read_default_value(field_schema.values, json_val)
-            read_map[key] = map_val
-          end
-          return read_map
-        when :union
-          return read_default_value(field_schema.schemas[0], default_value)
-        when :record, :error
-          read_record = {}
-          field_schema.fields.each do |field|
-            json_val = default_value[field.name]
-            json_val = field.default unless json_val
-            field_val = read_default_value(field.type, json_val)
-            read_record[field.name] = field_val
-          end
-          return read_record
-        else
-          fail_msg = "Unknown type: #{field_schema.type}"
-          raise AvroError, fail_msg
-        end
       end
 
       def skip_data(writers_schema, decoder)

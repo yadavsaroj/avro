@@ -31,40 +31,42 @@ module Avro
         ::JSON.parse(datum, {:quirks_mode => true})
       end
 
-      def decode_null(datum)
-        nil
-      end
+      class << self
+        def decode_null(datum)
+          nil
+        end
 
-      def decode_boolean(datum)
-        datum
-      end
+        def decode_boolean(datum)
+          datum
+        end
 
-      def decode_int(n)
-        decode_long(n)
-      end
+        def decode_int(n)
+          decode_long(n)
+        end
 
-      def decode_long(n)
-        Integer(n)
-      end
+        def decode_long(n)
+          Integer(n)
+        end
 
-      def decode_float(n)
-        Float(n)
-      end
+        def decode_float(n)
+          Float(n)
+        end
 
-      def decode_double(n)
-        decode_float(n)
-      end
+        def decode_double(n)
+          decode_float(n)
+        end
 
-      def decode_bytes(datum)
-        datum.encode(Encoding::ISO_8859_1, Encoding::UTF_8)
-      end
+        def decode_bytes(datum)
+          datum.encode(Encoding::ISO_8859_1, Encoding::UTF_8)
+        end
 
-      def decode_fixed(datum)
-        decode_bytes(datum)
-      end
+        def decode_fixed(datum)
+          decode_bytes(datum)
+        end
 
-      def decode_string(datum)
-        datum.encode(Encoding::UTF_8)
+        def decode_string(datum)
+          datum.encode(Encoding::UTF_8)
+        end
       end
     end
   end
