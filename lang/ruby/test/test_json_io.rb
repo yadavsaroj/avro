@@ -50,18 +50,18 @@ class TestIO < Test::Unit::TestCase
     schema = '"int"'
     avro_schema = Avro::Schema.parse(schema)
     bad_datum = Avro::Schema::INT_MAX_VALUE + 1
-    expected_message = "The datum #{bad_datum} is not an example of schema \"int\""
+    error_message = "The datum #{bad_datum} is not an example of schema \"int\""
 
     exception = assert_raises(Avro::IO::AvroTypeError) do
       write_datum(bad_datum, avro_schema)
     end
-    assert_equal expected_message, exception.message
+    assert_equal error_message, exception.message
 
     exception = assert_raises(Avro::IO::AvroTypeError) do
       read_datum(StringIO.new(JSON.dump(bad_datum)), avro_schema)
     end
 
-    assert_equal expected_message, exception.message
+    assert_equal error_message, exception.message
   end
 
   def test_long
@@ -73,18 +73,18 @@ class TestIO < Test::Unit::TestCase
     schema = '"long"'
     avro_schema = Avro::Schema.parse(schema)
     bad_datum = Avro::Schema::LONG_MAX_VALUE + 1
-    expected_message = "The datum #{bad_datum} is not an example of schema \"long\""
+    error_message = "The datum #{bad_datum} is not an example of schema \"long\""
 
     exception = assert_raises(Avro::IO::AvroTypeError) do
       write_datum(bad_datum, avro_schema)
     end
-    assert_equal expected_message, exception.message
+    assert_equal error_message, exception.message
 
     exception = assert_raises(Avro::IO::AvroTypeError) do
       read_datum(StringIO.new(JSON.dump(bad_datum)), avro_schema)
     end
 
-    assert_equal expected_message, exception.message
+    assert_equal error_message, exception.message
   end
 
   def test_float
@@ -186,18 +186,17 @@ EOS
     schema = JSON.dump({"type" => "fixed", "name" => "Test", "size" => 1})
     fixed_schema = Avro::Schema.parse(schema)
     bad_datum = 'def'
-    expected_message = "The datum \"#{bad_datum}\" is not an example of schema #{schema}"
 
     exception = assert_raises(Avro::IO::AvroTypeError) do
       write_datum(bad_datum, fixed_schema)
     end
-    assert_equal expected_message, exception.message
+    assert_equal "The datum \"#{bad_datum}\" is not an example of schema #{schema}", exception.message
 
     exception = assert_raises(Avro::IO::AvroTypeError) do
       read_datum(StringIO.new(JSON.dump(bad_datum)), fixed_schema)
     end
 
-    assert_equal expected_message, exception.message
+    assert_equal "The datum \"#{bad_datum}\" is not an example of schema \"fixed of size: 1\"", exception.message
   end
 
   def test_enum_with_duplicate

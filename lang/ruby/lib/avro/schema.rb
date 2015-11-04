@@ -90,25 +90,43 @@ module Avro
       end
     end
 
+    def self.is_integer?(datum)
+      (datum.is_a?(Fixnum) || datum.is_a?(Bignum)) && (INT_MIN_VALUE <= datum) && (datum <= INT_MAX_VALUE)
+    end
+
+    def self.is_long?(datum)
+      (datum.is_a?(Fixnum) || datum.is_a?(Bignum)) && (LONG_MIN_VALUE <= datum) && (datum <= LONG_MAX_VALUE)
+    end
+
+    def self.is_floating_point?(datum)
+      datum.is_a?(Float) || datum.is_a?(Fixnum) || datum.is_a?(Bignum)
+    end
+
+    def self.is_fixed?(datum, size)
+      datum.is_a?(String) && datum.size == size
+    end
+
+    def self.is_boolean?(datum)
+      datum == true || datum == false
+    end
+
     # Determine if a ruby datum is an instance of a schema
     def self.validate(expected_schema, datum)
       case expected_schema.type_sym
       when :null
         datum.nil?
       when :boolean
-        datum == true || datum == false
+        is_boolean?(datum)
       when :string, :bytes
         datum.is_a? String
       when :int
-        (datum.is_a?(Fixnum) || datum.is_a?(Bignum)) &&
-            (INT_MIN_VALUE <= datum) && (datum <= INT_MAX_VALUE)
+        is_integer?(datum)
       when :long
-        (datum.is_a?(Fixnum) || datum.is_a?(Bignum)) &&
-            (LONG_MIN_VALUE <= datum) && (datum <= LONG_MAX_VALUE)
+        is_long?(datum)
       when :float, :double
-        datum.is_a?(Float) || datum.is_a?(Fixnum) || datum.is_a?(Bignum)
+        is_floating_point?(datum)
       when :fixed
-        datum.is_a?(String) && datum.size == expected_schema.size
+        is_fixed?(datum, expected_schema.size)
       when :enum
         expected_schema.symbols.include? datum
       when :array
