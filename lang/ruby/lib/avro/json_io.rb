@@ -177,22 +177,22 @@ module Avro
     # JsonEncoder encodes a given datum and, when asked, writes it to the writer.
     class JsonEncoder
       attr_reader :writer
-      attr_accessor :current_data
+      attr_accessor :data
 
       def initialize(writer)
         @writer = writer
       end
 
       def write
-        writer.write(JSON.dump(@current_data))
+        writer.write(JSON.dump(@data))
       end
 
       def write_null(datum)
-        @current_data = nil
+        @data = nil
       end
 
       def write_boolean(datum)
-        @current_data = datum
+        @data = datum
       end
 
       def write_int(n)
@@ -200,11 +200,11 @@ module Avro
       end
 
       def write_long(n)
-        @current_data = Integer(n)
+        @data = Integer(n)
       end
 
       def write_float(n)
-        @current_data = Float(n)
+        @data = Float(n)
       end
 
       def write_double(n)
@@ -212,15 +212,15 @@ module Avro
       end
 
       def write_bytes(datum)
-        @current_data = datum.encode(Encoding::UTF_8, Encoding::ISO_8859_1)
+        @data = datum.encode(Encoding::UTF_8, Encoding::ISO_8859_1)
       end
 
       def write_fixed(datum)
-        @current_data = write_bytes(datum)
+        @data = write_bytes(datum)
       end
 
       def write_string(datum)
-        @current_data = datum.encode(Encoding::UTF_8)
+        @data = datum.encode(Encoding::UTF_8)
       end
     end # JsonEncoder
 
@@ -234,46 +234,50 @@ module Avro
       def write_record(writers_schema, datum, encoder)
         record = {}
         writers_schema.fields.each do |field|
-          write_data(field.type, datum[field.name], encoder)
-          record[field.name] = encoder.current_data
+          field_encoder = encoder.class.new(encoder.writer)
+          write_data(field.type, datum[field.name], field_encoder)
+          record[field.name] = field_encoder.data
         end
-        encoder.current_data = record
+        encoder.data = record
       end
 
       def write_array(writers_schema, datum, encoder)
         items = []
         datum.each do |item|
-          write_data(writers_schema.items, item, encoder)
-          items << encoder.current_data
+          item_encoder = encoder.class.new(encoder.writer)
+          write_data(writers_schema.items, item, item_encoder)
+          items << item_encoder.data
         end
-        encoder.current_data = items
+        encoder.data = items
       end
 
       def write_map(writers_schema, datum, encoder)
         object = {}
         datum.each do |k,v|
-          write_data(writers_schema.values, v, encoder)
-          object[k] = encoder.current_data
+          value_encoder = encoder.class.new(encoder.writer)
+          write_data(writers_schema.values, v, value_encoder)
+          object[k] = value_encoder.data
         end
-        encoder.current_data = object
+        encoder.data = object
       end
 
       def write_union(writers_schema, datum, encoder)
         datum_schema = writers_schema.schemas.find {|schema| Schema.validate(schema, datum)}
         raise AvroTypeError.new(writers_schema, datum) unless datum_schema
 
-        write_data(datum_schema, datum, encoder)
+        value_encoder = encoder.class.new(encoder.writer)
+        write_data(datum_schema, datum, value_encoder)
 
         if datum_schema.type_sym == :null
-          encoder.current_data
+          value_encoder.data
         else
           data = {}
           if datum_schema.respond_to?(:name)
-            data[datum_schema.name] = encoder.current_data
+            data[datum_schema.name] = value_encoder.data
           else
-            data[datum_schema.type_sym.to_s] = encoder.current_data
+            data[datum_schema.type_sym.to_s] = value_encoder.data
           end
-          encoder.current_data = data
+          encoder.data = data
         end
       end
 
