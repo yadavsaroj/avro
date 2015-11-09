@@ -24,14 +24,12 @@ module Avro
     # About validations - If JSONDatumReader has its own read_data implementation, data validations can be moved there instead.
     # That way reader can reuse Schema.validate method and have same behavior as the writer in case of schema and data mismatch.
     class JsonDecoder
-      attr_reader :reader
       attr_accessor :data
 
-      def read_from(reader)
+      def read(reader)
         datum = reader.read
         datum = '""' if datum.empty?
         data = JSON.parse(datum, {:quirks_mode => true})
-
         @data = data
 
         self
@@ -48,7 +46,7 @@ module Avro
       end
 
       def read_int
-        error('int') unless Schema.is_integer?(data)
+        error('"int"') unless Schema.is_integer?(data)
 
         Integer(data)
       end

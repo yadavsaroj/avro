@@ -380,7 +380,7 @@ EOS
     expected = Avro::Schema.parse(expected_schema)
 
     reader = Avro::IO::JsonDatumReader.new(actual, expected)
-    record = reader.read(Avro::IO::JsonDecoder.new.read_from(StringIO.new))
+    record = reader.read(Avro::IO::JsonDecoder.new.read(StringIO.new))
     assert_equal default_value, record["f"]
   end
 
@@ -414,7 +414,7 @@ EOS
     w.write(datum, Avro::IO::JsonEncoder.new(writer))
     r = datum_reader(schm)
     reader = StringIO.new(writer.string)
-    ob = r.read(Avro::IO::JsonDecoder.new.read_from(reader))
+    ob = r.read(Avro::IO::JsonDecoder.new.read(reader))
 
     assert_equal(datum, ob) # FIXME check on assertdata conditional
   end
@@ -441,7 +441,7 @@ EOS
 
   def read_datum(buffer, writers_schema, readers_schema=nil)
     reader = StringIO.new(buffer.string)
-    decoder = Avro::IO::JsonDecoder.new.read_from(reader)
+    decoder = Avro::IO::JsonDecoder.new.read(reader)
     datum_reader = Avro::IO::JsonDatumReader.new(writers_schema, readers_schema)
     datum_reader.read(decoder)
   end
