@@ -27,13 +27,14 @@ module Avro
       attr_reader :reader
       attr_accessor :current_data
 
-      def initialize(reader)
-        @reader = reader
-
-        datum = @reader.read
+      def read_from(reader)
+        datum = reader.read
         datum = '""' if datum.empty?
         data = JSON.parse(datum, {:quirks_mode => true})
+
         @current_data = data
+
+        self
       end
 
       def read_null
@@ -47,7 +48,7 @@ module Avro
       end
 
       def read_int
-        error('"int"') unless Schema.is_integer?(current_data)
+        error('int') unless Schema.is_integer?(current_data)
 
         Integer(current_data)
       end
@@ -99,8 +100,9 @@ module Avro
         writers_schema.fields.each do |field|
           if readers_field = readers_fields_hash[field.name]
             field_data = data ? data[field.name] : nil
-            decoder.current_data = field_data
-            field_val = read_data(field.type, readers_field.type, decoder)
+            field_decoder = decoder.class.new
+            field_decoder.current_data = field_data
+            field_val = read_data(field.type, readers_field.type, field_decoder)
             read_record[field.name] = field_val
           end
         end
@@ -136,8 +138,10 @@ module Avro
         read_items = []
         data = decoder.current_data
         data.each do |item|
-          decoder.current_data = item
-          read_items << read_data(writers_schema.items, readers_schema.items, decoder)
+          # decoder.current_data = item
+          item_decoder = decoder.class.new
+          item_decoder.current_data = item
+          read_items << read_data(writers_schema.items, readers_schema.items, item_decoder)
         end if decoder.current_data
         return read_items
       end
@@ -146,8 +150,10 @@ module Avro
         read_items = {}
         data = decoder.current_data
         data.each_pair do |key, value|
-          decoder.current_data = value
-          read_items[key] = read_data(writers_schema.values, readers_schema.values, decoder)
+          # decoder.current_data = value
+          value_decoder = decoder.class.new
+          value_decoder.current_data = value
+          read_items[key] = read_data(writers_schema.values, readers_schema.values, value_decoder)
         end
         return read_items
       end
@@ -164,8 +170,10 @@ module Avro
                                     (writer_schema.name == schema_type if writer_schema.respond_to?(:name))
         end
 
-        decoder.current_data = value
-        read_data(data_schema, readers_schema, decoder)
+        # decoder.current_data = value
+        value_decoder = decoder.class.new
+        value_decoder.current_data = value
+        read_data(data_schema, readers_schema, value_decoder)
       end
     end # JsonDatumReader
 
