@@ -19,10 +19,7 @@ require 'json'
 
 module Avro
   module IO
-    # JsonDecoder keeps track of the current data and reads it using a given data type.
-    #
-    # About validations - If JSONDatumReader has its own read_data implementation, data validations can be moved there instead.
-    # That way reader can reuse Schema.validate method and have same behavior as the writer in case of schema and data mismatch.
+    # JsonDecoder keeps track of the data and reads it using a given data type.
     class JsonDecoder
       attr_accessor :data
 
@@ -36,30 +33,25 @@ module Avro
       end
 
       def read_null
-        error('null') unless data.nil?
         nil
       end
 
       def read_boolean
-        error('boolean') unless Schema.is_boolean?(data)
         data
       end
 
       def read_int
-        error('"int"') unless Schema.is_integer?(data)
-
+        validate(:int, data)
         Integer(data)
       end
 
       def read_long
-        error('"long"') unless Schema.is_long?(data)
-
+        validate(:long, data)
         Integer(data)
       end
 
       def read_float
-        error('"float"') unless Schema.is_floating_point?(data)
-
+        validate(:float, data)
         Float(data)
       end
 
@@ -68,36 +60,43 @@ module Avro
       end
 
       def read_bytes
-        error('"bytes"') unless data.is_a?(String)
+        validate(:bytes, data)
         data.encode(Encoding::ISO_8859_1, Encoding::UTF_8)
       end
 
       def read_fixed(size)
-        error("\"fixed of size: #{size}\"") unless Schema.is_fixed?(data, size)
         read_bytes
       end
 
       def read_string
-        error('string') unless data.is_a?(String)
+        validate(:string, data)
         data ? data.encode(Encoding::UTF_8) : data
       end
 
-      def error(data_type)
-        raise AvroTypeError.new(data_type, data)
+      def validate(data_type, data)
+        schema = Schema::PrimitiveSchema.new(data_type)
+        unless Schema.validate(schema, data)
+          raise AvroTypeError.new(schema, data)
+        end
       end
     end # JsonDecoder
 
     # Unlike DatumReader, JsonDatumReader reads the file first so that it can decode schema with the JSON data.
     # It uses JsonDecoder to keep track of current data as it is going through the schema.
     class JsonDatumReader < DatumReader
+      def validate(schema, data)
+        unless Schema.validate(schema, data)
+          raise AvroTypeError.new(schema, data)
+        end
+      end
+
       def read_record(writers_schema, readers_schema, decoder)
         readers_fields_hash = readers_schema.fields_hash
         read_record = {}
 
-        data = decoder.data
         writers_schema.fields.each do |field|
           if readers_field = readers_fields_hash[field.name]
-            field_data = data ? data[field.name] : nil
+            field_data = decoder.data ? decoder.data[field.name] : nil
             field_decoder = decoder.class.new
             field_decoder.data = field_data
             field_val = read_data(field.type, readers_field.type, field_decoder)
@@ -118,40 +117,47 @@ module Avro
           end
         end
 
+        validate(readers_schema, read_record)
+
         read_record
       end
 
       def read_fixed(writers_schema, readers_schema, decoder)
+        validate(readers_schema, decoder.data)
+
         decoder.read_fixed(writers_schema.size)
       end
 
       def read_enum(writers_schema, readers_schema, decoder)
-        unless Schema.validate(writers_schema, decoder.data)
-          raise AvroTypeError.new(writers_schema, decoder.data)
-        end
+        validate(readers_schema, decoder.data)
+
         decoder.data
       end
 
       def read_array(writers_schema, readers_schema, decoder)
         read_items = []
-        data = decoder.data
-        data.each do |item|
+        decoder.data.each do |item|
           item_decoder = decoder.class.new
           item_decoder.data = item
           read_items << read_data(writers_schema.items, readers_schema.items, item_decoder)
         end if decoder.data
-        return read_items
+
+        validate(readers_schema, read_items)
+
+        read_items
       end
 
       def read_map(writers_schema, readers_schema, decoder)
         read_items = {}
-        data = decoder.data
-        data.each_pair do |key, value|
+        decoder.data.each_pair do |key, value|
           value_decoder = decoder.class.new
           value_decoder.data = value
           read_items[key] = read_data(writers_schema.values, readers_schema.values, value_decoder)
         end
-        return read_items
+
+        validate(readers_schema, read_items)
+
+        read_items
       end
 
       def read_union(writers_schema, readers_schema, decoder)
@@ -161,14 +167,18 @@ module Avro
           schema_type, value = decoder.data.first
         end
 
-        data_schema = writers_schema.schemas.find do |writer_schema|
-          writer_schema.type_sym == schema_type.to_sym ||
-                                    (writer_schema.name == schema_type if writer_schema.respond_to?(:name))
+        data_schema = readers_schema.schemas.find do |reader_schema|
+          reader_schema.type_sym == schema_type.to_sym ||
+                                    (reader_schema.name == schema_type if reader_schema.respond_to?(:name))
         end
 
         value_decoder = decoder.class.new
         value_decoder.data = value
-        read_data(data_schema, readers_schema, value_decoder)
+        field_value = read_data(data_schema, readers_schema, value_decoder)
+
+        validate(readers_schema, field_value)
+
+        field_value
       end
     end # JsonDatumReader
 

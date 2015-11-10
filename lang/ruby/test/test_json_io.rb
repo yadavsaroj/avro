@@ -186,17 +186,18 @@ EOS
     schema = JSON.dump({"type" => "fixed", "name" => "Test", "size" => 1})
     fixed_schema = Avro::Schema.parse(schema)
     bad_datum = 'def'
+    error_message = "The datum \"#{bad_datum}\" is not an example of schema #{schema}"
 
     exception = assert_raises(Avro::IO::AvroTypeError) do
       write_datum(bad_datum, fixed_schema)
     end
-    assert_equal "The datum \"#{bad_datum}\" is not an example of schema #{schema}", exception.message
+    assert_equal error_message, exception.message
 
     exception = assert_raises(Avro::IO::AvroTypeError) do
       read_datum(StringIO.new(JSON.dump(bad_datum)), fixed_schema)
     end
 
-    assert_equal "The datum \"#{bad_datum}\" is not an example of schema \"fixed of size: 1\"", exception.message
+    assert_equal error_message, exception.message
   end
 
   def test_enum_with_duplicate
