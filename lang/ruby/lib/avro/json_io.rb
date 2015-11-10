@@ -90,35 +90,21 @@ module Avro
         end
       end
 
+      def read_record_data(field, readers_field, decoder)
+        field_data = decoder.data ? decoder.data[field.name] : nil
+        field_decoder = decoder.class.new
+        field_decoder.data = field_data
+        read_data(field.type, readers_field.type, field_decoder)
+      end
+
+      def skip_data(writers_schema, decoder)
+        # no-op
+      end
+
       def read_record(writers_schema, readers_schema, decoder)
-        read_record = {}
-
-        readers_fields_hash = readers_schema.fields_hash
-        writers_schema.fields.each do |field|
-          if readers_field = readers_fields_hash[field.name]
-            field_data = decoder.data ? decoder.data[field.name] : nil
-            field_decoder = decoder.class.new
-            field_decoder.data = field_data
-            field_val = read_data(field.type, readers_field.type, field_decoder)
-            read_record[field.name] = field_val
-          end
-        end
-
-        # fill in the default values
-        if readers_fields_hash.size > read_record.size
-          readers_fields_hash.each do |field_name, field|
-            unless writers_schema.fields_hash.has_key? field_name
-              if !field.default.nil?
-                field_val = read_default_value(field.type, field.default)
-                read_record[field.name] = field_val
-              end
-            end
-          end
-        end
-
-        validate(readers_schema, read_record)
-
-        read_record
+        record = super
+        validate(readers_schema, record)
+        record
       end
 
       def read_fixed(writers_schema, readers_schema, decoder)
