@@ -23,7 +23,7 @@ module Avro
     class JsonDecoder
       attr_accessor :data
 
-      def read(reader)
+      def io_reader(reader)
         datum = reader.read
         datum = '""' if datum.empty?
         data = JSON.parse(datum, {:quirks_mode => true})
