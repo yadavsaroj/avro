@@ -37,8 +37,23 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_bytes
-    check('"bytes"')
-    check_default('"bytes"', '"foo"', "foo")
+    schema = '"bytes"'
+    schm = Avro::Schema.parse schema
+
+    datum = ''
+    (0..255).each do |n|
+      datum += [n].pack('C*')
+    end
+
+    w = Avro::IO::JsonDatumWriter.new(schm)
+    writer = StringIO.new "", "wb"
+    w.write(datum, Avro::IO::JsonEncoder.new(writer))
+
+    r = datum_reader(schm)
+    reader = StringIO.new(writer.string)
+    ob = r.read(Avro::IO::JsonDecoder.new.io_reader(reader))
+
+    assert_equal(datum.bytes, ob.bytes)
   end
 
   def test_int
@@ -417,7 +432,7 @@ EOS
     reader = StringIO.new(writer.string)
     ob = r.read(Avro::IO::JsonDecoder.new.io_reader(reader))
 
-    assert_equal(datum, ob) # FIXME check on assertdata conditional
+    assert_equal(datum, ob)
   end
 
   def validate(schm, datum)
