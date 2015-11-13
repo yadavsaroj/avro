@@ -21,6 +21,9 @@ module Avro
   module IO
     # JsonDecoder keeps track of the data and reads it using a given data type.
     class JsonDecoder
+      # memo-ized map of Schema::PrimitiveSchema objects so we're not allocating an object for every validation
+      PRIMITIVE_SCHEMAS = Hash[Schema::PRIMITIVE_TYPES_SYM.map { |k| [k, Schema::PrimitiveSchema.new(k)] }]
+
       attr_accessor :data
 
       def io_reader(reader)
@@ -33,10 +36,12 @@ module Avro
       end
 
       def read_null
-        nil
+        validate(:null, data)
+        data
       end
 
       def read_boolean
+        validate(:boolean, data)
         data
       end
 
@@ -74,7 +79,7 @@ module Avro
       end
 
       def validate(data_type, data)
-        schema = Schema::PrimitiveSchema.new(data_type)
+        schema = PRIMITIVE_SCHEMAS[data_type]
         unless Schema.validate(schema, data)
           raise AvroTypeError.new(schema, data)
         end
@@ -157,11 +162,13 @@ module Avro
                                     (reader_schema.name == schema_type if reader_schema.respond_to?(:name))
         end
 
+        raise AvroTypeError.new(readers_schema, value) unless data_schema
+
         value_decoder = decoder.class.new
         value_decoder.data = value
         field_value = read_data(data_schema, readers_schema, value_decoder)
 
-        validate(readers_schema, field_value)
+        validate(data_schema, field_value)
 
         field_value
       end

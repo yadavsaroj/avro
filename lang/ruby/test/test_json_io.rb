@@ -21,19 +21,25 @@ class TestIO < Test::Unit::TestCase
   Schema = Avro::Schema
 
   def test_null
-    check('"null"')
-    check_default('"null"', "null", nil)
+    null_schema = '"null"'
+    check(null_schema)
+    check_default(null_schema, "null", nil)
+    check_invalid(null_schema, "foo")
   end
 
   def test_boolean
-    check('"boolean"')
-    check_default('"boolean"', "true", true)
-    check_default('"boolean"', "false", false)
+    boolean_schema = '"boolean"'
+    check(boolean_schema)
+    check_default(boolean_schema, "true", true)
+    check_default(boolean_schema, "false", false)
+    check_invalid(boolean_schema, "foo")
   end
 
   def test_string
-    check('"string"')
-    check_default('"string"', '"foo"', "foo")
+    string_schema = '"string"'
+    check(string_schema)
+    check_default(string_schema, '"foo"', "foo")
+    check_invalid(string_schema, 123)
   end
 
   def test_bytes
@@ -57,8 +63,10 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_int
-    check('"int"')
-    check_default('"int"', "5", 5)
+    int_schema = '"int"'
+    check(int_schema)
+    check_default(int_schema, "5", 5)
+    check_invalid(int_schema, "foo")
   end
 
   def test_out_of_range_int
@@ -80,8 +88,10 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_long
-    check('"long"')
-    check_default('"long"', "9", 9)
+    long_schema = '"long"'
+    check(long_schema)
+    check_default(long_schema, "9", 9)
+    check_invalid(long_schema, "foo")
   end
 
   def test_out_of_range_long
@@ -103,25 +113,31 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_float
-    check('"float"')
-    check_default('"float"', "1.2", 1.2)
+    float_schema = '"float"'
+    check(float_schema)
+    check_default(float_schema, "1.2", 1.2)
+    check_invalid(float_schema, "foo")
   end
 
   def test_double
-    check('"double"')
-    check_default('"double"', "1.2", 1.2)
+    double_schema = '"double"'
+    check(double_schema)
+    check_default(double_schema, "1.2", 1.2)
+    check_invalid(double_schema, "foo")
   end
 
   def test_array
     array_schema = '{"type": "array", "items": "long"}'
     check(array_schema)
     check_default(array_schema, "[1]", [1])
+    check_invalid(array_schema, ['foo'])
   end
 
   def test_map
     map_schema = '{"type": "map", "values": "long"}'
     check(map_schema)
     check_default(map_schema, '{"a": 1}', {"a" => 1})
+    check_invalid(map_schema, {'foo' => 'bar'})
   end
 
   def test_record
@@ -133,6 +149,7 @@ class TestIO < Test::Unit::TestCase
 EOS
     check(record_schema)
     check_default(record_schema, '{"f": 11}', {"f" => 11})
+    check_invalid(record_schema, "foo")
   end
 
   def test_error
@@ -150,6 +167,7 @@ EOS
     enum_schema = '{"type": "enum", "name": "Test","symbols": ["A", "B"]}'
     check(enum_schema)
     check_default(enum_schema, '"B"', "B")
+    check_invalid(enum_schema, "C")
   end
 
   def test_recursive
@@ -175,6 +193,7 @@ EOS
 EOS
     check(union_schema)
     check_default('["double", "long"]', "1.1", 1.1)
+    check_invalid(union_schema, {'float' => 123.56})
   end
 
   def test_lisp
@@ -195,6 +214,7 @@ EOS
     fixed_schema = '{"type": "fixed", "name": "Test", "size": 1}'
     check(fixed_schema)
     check_default(fixed_schema, '"a"', "a")
+    check_invalid(fixed_schema, 123.56)
   end
 
   def test_invalid_fixed_length
@@ -383,6 +403,14 @@ EOS
   end
 
   private
+
+  def check_invalid(schema_json, bad_datum)
+    avro_schema = Avro::Schema.parse(schema_json)
+
+    assert_raises(Avro::IO::AvroTypeError) { write_datum(bad_datum, avro_schema) }
+
+    assert_raises(Avro::IO::AvroTypeError) { read_datum(StringIO.new(JSON.dump(bad_datum)), avro_schema) }
+  end
 
   def check_default(schema_json, default_json, default_value)
     actual_schema = '{"type": "record", "name": "Foo", "fields": []}'
