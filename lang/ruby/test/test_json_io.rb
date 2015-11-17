@@ -17,7 +17,7 @@
 require 'test_help'
 require 'avro/json_io'
 
-class TestIO < Test::Unit::TestCase
+class TestJsonIO < Test::Unit::TestCase
   Schema = Avro::Schema
 
   def test_null
